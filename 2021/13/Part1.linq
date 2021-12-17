@@ -23,7 +23,7 @@ let parseFold s =
 
 let combineHalves (first: bool[,]) (second: bool[,]) =
     first
-    |> Array2D.mapi (fun x y v -> v || (second[x,y]))
+    |> Array2D.mapi (fun y x v -> v || (second[y,x]))
         
 let flipVertical (data: bool[,]) =
     seq { 0 .. (Array2D.length1 data)-1 }
@@ -60,7 +60,7 @@ let applyFold (data: bool[,]) fold =
     | Left x -> foldLeft x data
 
 let lines = 
-    getData "puzzle"
+    getData "test"
 
 let splitIndex =
     lines
@@ -78,6 +78,7 @@ let folds =
 let (maxX, maxY) =
     points
     |> Array.fold (fun (curMaxX,curMaxY) (x,y) -> (max curMaxX x), (max curMaxY y)) (0, 0)
+    |> (fun (x, y) -> (x + (x % 2), y + (y % 2)))
 
 let paper =
     Array2D.create (maxY + 1) (maxX + 1) false
@@ -88,10 +89,10 @@ let folded =
     |> Array.take 1
     |> Array.fold applyFold paper
     
-folded.Dump()
+//folded.Dump()
 
 let total =
-    Seq.allPairs [0..(Array2D.length1 folded)-1] [0..(Array2D.length2 folded)-1]
-    |> Seq.fold (fun total (x,y) -> if folded[x,y] then total + 1 else total) 0
+    Seq.allPairs [0..(Array2D.length2 folded)-1] [0..(Array2D.length1 folded)-1]
+    |> Seq.fold (fun total (x,y) -> if folded[y,x] then total + 1 else total) 0
     
 total.Dump()
