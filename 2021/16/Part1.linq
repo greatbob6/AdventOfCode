@@ -23,13 +23,11 @@ let hexMap = function
     | 'F' -> "1111"
     | _ -> ""
     
-
 let bits = 
-    getData "literal"
+    getData "puzzle"
     |> Array.head
+    |> String.collect hexMap
     |> (fun s -> s.ToCharArray())
-    |> Array.map hexMap
-    |> (fun s -> String.Join("", s))
     
 type Packet = {
     Header: PacketHeader
@@ -42,7 +40,7 @@ and
     }
 and
     PacketData =
-    | Literal of int
+    | Literal of int64
     | Operator of Packet list
 
 // packet header
@@ -65,33 +63,106 @@ type ParseResult<'a> = {
     Element: 'a
 }
 
-let parseHeader (bits: string) =
+let parseHeader (bits: char[]) =
     {
         BitsRead = 6
         Element =
             {
-                Version = Convert.ToInt32(bits[..2], 2)
-                TypeId = Convert.ToInt32(bits[3..5], 2)
+                Version = Convert.ToInt32((String bits[..2]), 2)
+                TypeId = Convert.ToInt32((String bits[3..5]), 2)
             }
     }
     
-let parseLiteral bits =
-    Literal 6
+let parseLiteral (bits: char[]) =
+    let rec parseNumberBits values startIdx (bits: char[]) =
+        let cont = (bits[startIdx] = '1')
+        let valueBits = bits[startIdx+1..startIdx+4]
+        
+        if cont then
+            parseNumberBits (valueBits :: values) (startIdx + 5) bits
+        else
+            (valueBits :: values)
     
-let parseOperator bits =
-    Operator []
+    let numbers = parseNumberBits [] 0 bits
     
-let parseBody header bits =
-    match header.TypeId with
-    | 4 -> parseLiteral bits
-    | _ -> parseOperator bits
+    let number =
+        numbers
+        |> List.rev
+        |> List.collect Array.toList
+        |> List.toArray
+        |> String
+        |> (fun s -> Convert.ToInt64(s, 2))
+    
+    { BitsRead = (List.length numbers) * 5; Element = Literal number }
+    
+let rec parseOperator (bits: char[]) =
+    let lengthTypeId = bits[0]
+    
+    if lengthTypeId = '0' then
+        let subPacketBitCount = bits[1..15] |> String |> (fun s -> Convert.ToInt32(s, 2))
+        
+        let rec packetParser packets charsRemaining pbits =
+            let p = parsePacket pbits
+            
+            let remaining = charsRemaining - p.BitsRead
+            
+            if remaining > 0 then
+                packetParser (p.Element :: packets) remaining pbits[p.BitsRead..]
+            else
+                (p.Element :: packets)
+        
+        let packets =
+            packetParser [] subPacketBitCount bits[16..subPacketBitCount+15]
+            |> List.rev
+        
+        { BitsRead = subPacketBitCount + 16; Element = Operator packets }
+    else
+        let subPacketCount = bits[1..11] |> String |> (fun s -> Convert.ToInt32(s, 2))
+        
+        let rec packetParser packetResults packetsRemaining bits =
+            let p = parsePacket bits
+            
+            if packetsRemaining > 0 then
+                packetParser (p :: packetResults) (packetsRemaining - 1) bits[p.BitsRead..]
+            else
+                (p :: packetResults)
+                
+        let (count, packets) =
+            packetParser [] (subPacketCount - 1) bits[12..]
+            |> List.fold (fun (count, packets) packetResult -> (count + packetResult.BitsRead, packetResult.Element :: packets)) (12,[])
+                
+        { BitsRead = count; Element = Operator packets }
+        
+and
+    parseBody header bits =
+        match header.TypeId with
+        | 4 -> parseLiteral bits
+        | _ -> parseOperator bits
 
-let parsePacket (bits: string) =
-    let headerResult = parseHeader bits
+and
+    parsePacket (bits: char[]) =
+        let headerResult = parseHeader bits
+        
+        let body = parseBody headerResult.Element bits[headerResult.BitsRead..]
+        
+        {
+            BitsRead = headerResult.BitsRead + body.BitsRead
+            Element = { Header = headerResult.Element; Body = body.Element }
+        }
+
+let rec versionSummer packet =
+    let res =
+        match packet.Body with
+        | Operator subpackets ->
+            subpackets
+            |> List.fold (fun total p -> total + versionSummer p) packet.Header.Version
+        | _ -> packet.Header.Version
+        
+    res
     
-    let body = parseBody headerResult.Element bits[..headerResult.BitsRead]
-    
-    { Header = headerResult.Element; Body = body }
-    
-let result = parsePacket bits
+let parsedPacket = parsePacket bits
+
+let result = versionSummer parsedPacket.Element
 result.Dump()
+
+parsedPacket.Element.Dump()
