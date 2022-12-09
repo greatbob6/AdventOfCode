@@ -63,20 +63,57 @@ let parseLines (lines: string list) =
 
     parse [] lines
 
-(*
-let processOp (state: Map<string list, FileSystemEntry list>) (curPath: string list) op =
-    match op with
-    | ChangeDirectory dir ->
-        if curPath[0] <> dir then
-            (state, dir :: curPath)
-        else
-            (state, curPath)
-    | List -> (state, curPath)
-    | FileSystemEntry e ->
-        let newState = Map.add curPath 
-*)
+type State = {
+    CurrentPath: string list
+    Files: Map<string list, File list>
+}
 
-let ops =
+let foldChangeDir state dir =
+    if dir = ".." then
+        { state with CurrentPath = List.tail state.CurrentPath }
+    elif List.head state.CurrentPath = dir then
+        state
+    else
+        { state with CurrentPath = dir :: state.CurrentPath }
+
+let foldList state items =
+    let addedFiles =
+        items
+        |> List.choose (fun x -> match x with | FileInfo (name, size) -> Some { Name = name; Size = size } | _ -> None)
+
+    let newMap =
+        if Map.containsKey state.CurrentPath state.Files then
+            let curFiles = Map.find state.CurrentPath state.Files
+            let newFiles = List.append curFiles addedFiles
+
+            Map.change state.CurrentPath (fun _ -> Some newFiles) state.Files
+        else
+            Map.add state.CurrentPath addedFiles state.Files
+
+    { state with Files = newMap }
+
+let folder (state: State) op =
+    match op with
+    | ChangeDirectory dir -> foldChangeDir state dir
+    | List items -> foldList state items
+
+let generateFileMap ops =
+    let s =
+        ops
+        |> List.fold folder { CurrentPath = [ "/" ]; Files = Map.empty<string list, File list> }
+
+    s.Files
+
+let fileMapToList filemap =
+    filemap
+    |> Map.toList
+    |> List.map fst
+    |> List.map List.rev
+
+let result =
     System.IO.File.ReadAllLines("7/test.txt")
     |> List.ofArray
     |> parseLines
+    |> List.rev
+    |> generateFileMap
+    |> fileMapToList
