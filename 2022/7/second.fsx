@@ -133,7 +133,13 @@ let getDirs (fileMap: Map<string list, File list>) =
     |> Map.toList
     |> List.map fst
 
+let totalSpace = 70000000
+let neededSpace = 30000000
+let currentUsed = findDirSize fileMap [ "/" ]
+let currentAvailable = totalSpace - currentUsed
+let needToFree = neededSpace - currentAvailable
+
 getDirs fileMap
 |> List.map (fun d -> findDirSize fileMap d)
-|> List.filter (fun x -> x <= 100000)
-|> List.sum
+|> List.filter (fun x -> x > needToFree)
+|> List.min
