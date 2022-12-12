@@ -51,8 +51,41 @@ let printState state =
         System.Console.WriteLine()
     )
 
+let diff head tail =
+    let x = head.X - tail.X
+    let y = head.Y - tail.Y
+
+    (x, y)
+
+let moveTail head tail =
+    let d = diff head tail
+
+    match d with
+    | (2, 0) -> { tail with X = tail.X + 1 }
+    | (-2, 0) -> { tail with X = tail.X - 1 }
+    | (0, 2) -> { tail with Y = tail.Y + 1 }
+    | (0, -2) -> { tail with Y = tail.Y - 1 }
+    | (1, 2) -> { tail with X = tail.X + 1; Y = tail.Y + 1 }
+    | (-1, 2) -> { tail with X = tail.X - 1; Y = tail.Y + 1 }
+    | (-1, -2) -> { tail with X = tail.X - 1; Y = tail.Y - 1 }
+    | (1, -2) -> { tail with X = tail.X + 1; Y = tail.Y - 1 }
+    | (2, -1) -> { tail with X = tail.X + 1; Y = tail.Y - 1 }
+    | (2, 1) -> { tail with X = tail.X + 1; Y = tail.Y + 1 }
+    | (-2, 1) -> { tail with X = tail.X - 1; Y = tail.Y + 1 }
+    | (-2, -1) -> { tail with X = tail.X - 1; Y = tail.Y - 1 }
+    | _ -> tail
+
+let mover (state: State) count (headUpdater: (Point -> Point)) =
+    seq { 0 .. count - 1 }
+    |> Seq.fold (fun s v ->
+        let newHead = headUpdater s.Head
+        let newTail = moveTail s.Head s.Tail
+
+        { s with Head = newHead; Tail = newTail }
+    ) state
+
 let moveUp state count =
-    { state with Head = { X = state.Head.X; Y = state.Head.Y + count }}
+    mover state count (fun h -> { h with Y = h.Y + 1 })
 
 let moveDown state count =
     { state with Head = { X = state.Head.X; Y = state.Head.Y - count }}
@@ -72,9 +105,13 @@ let applyMove state move =
 
 let start = { Head = { X = 0; Y = 0 }; Tail = { X = 0; Y = 0 }; TailPointsVisited = [] }
 
+(*
 let result =
     System.IO.File.ReadAllLines(@"test.txt")
     |> parseMoves
     |> Array.fold (fun s m -> applyMove s m ) start
+*)
+
+let result = applyMove start (Up 1)
 
 printState result
