@@ -7,7 +7,7 @@ type Point = {
 type State = {
     Head: Point
     Tail: Point
-    TailPointsVisited: Point list
+    TailPointsVisited: Set<Point>
 }
 
 type Move =
@@ -79,22 +79,22 @@ let mover (state: State) count (headUpdater: (Point -> Point)) =
     seq { 0 .. count - 1 }
     |> Seq.fold (fun s v ->
         let newHead = headUpdater s.Head
-        let newTail = moveTail s.Head s.Tail
+        let newTail = moveTail newHead s.Tail
 
-        { s with Head = newHead; Tail = newTail }
+        { s with Head = newHead; Tail = newTail; TailPointsVisited = Set.add newTail s.TailPointsVisited }
     ) state
 
 let moveUp state count =
     mover state count (fun h -> { h with Y = h.Y + 1 })
 
 let moveDown state count =
-    { state with Head = { X = state.Head.X; Y = state.Head.Y - count }}
+    mover state count (fun h -> { h with Y = h.Y - 1 })
 
 let moveLeft state count =
-    { state with Head = { X = state.Head.X - count; Y = state.Head.Y }}
+    mover state count (fun h -> { h with X = h.X - 1 })
 
 let moveRight state count =
-    { state with Head = { X = state.Head.X + count; Y = state.Head.Y }}
+    mover state count (fun h -> { h with X = h.X + 1 })
 
 let applyMove state move =
     match move with
@@ -103,15 +103,16 @@ let applyMove state move =
     | Left x -> moveLeft state x
     | Right x -> moveRight state x
 
-let start = { Head = { X = 0; Y = 0 }; Tail = { X = 0; Y = 0 }; TailPointsVisited = [] }
+let start = { Head = { X = 0; Y = 0 }; Tail = { X = 0; Y = 0 }; TailPointsVisited = Set.empty<Point> }
 
-(*
 let result =
-    System.IO.File.ReadAllLines(@"test.txt")
+    System.IO.File.ReadAllLines(@"9/puzzle.txt")
     |> parseMoves
     |> Array.fold (fun s m -> applyMove s m ) start
-*)
 
-let result = applyMove start (Up 1)
+//let result = applyMove start (Right 1)
+//let result2 = applyMove result (Up 2)
 
-printState result
+//printState result
+
+Set.count result.TailPointsVisited
