@@ -60,19 +60,36 @@ let getMinLocationForSeedRange listOfMappings seedRange =
     seq { seedRange.SeedStart .. seedRange.SeedEnd }
     |> Seq.fold (fun currentMin seedNum -> min currentMin (getLocationForSeed listOfMappings seedNum)) Int64.MaxValue
 
+let rangeOverlaps r1 r2 = r1.SeedStart <= r2.SeedEnd && r1.SeedEnd >= r2.SeedStart
+let combineRanges r1 r2 = { SeedStart = min r1.SeedStart r2.SeedStart; SeedEnd = max r1.SeedEnd r2.SeedEnd }
+
+let seedRangeProcessor listOfMappings currentMin seedRange =
+    let seedCount = seedRange.SeedEnd - seedRange.SeedStart
+    seedCount.Dump("Seed Count")
+    
+    let sw = Stopwatch.StartNew()
+    
+    let minLocation = min currentMin (getMinLocationForSeedRange listOfMappings seedRange)
+    
+    sw.Stop()
+    
+    sw.Elapsed.Dump("SeedRange Processing Time")
+    (sw.ElapsedMilliseconds / seedCount).Dump("Ms per seed")
+    
+    minLocation
+
 let sections = splitList [] lines
 
 let seedRanges = sections[0][0] |> parseSeedRanges
 let listOfMappings = List.map (fun (l: string list) -> l.Tail |> parseMappings) sections.Tail
 
-seedRanges
-|> Array.map (fun sr -> (sr, Array.exists (fun isr -> sr.SeedStart <= isr.SeedEnd && sr.SeedEnd >= isr.SeedStart) seedRanges))
-|> (fun x -> x.Dump())
-
-// Seed Ranges overlap...need to deduplicate the ranges
-
 (*
 seedRanges
-|> Array.fold (fun currentMin seedRange -> min currentMin (getMinLocationForSeedRange listOfMappings seedRange)) Int64.MaxValue
+|> Array.fold (seedRangeProcessor listOfMappings) Int64.MaxValue
 |> (fun x -> x.Dump())
 *)
+
+seedRanges
+|> Array.Parallel.map (fun seedRange -> getMinLocationForSeedRange listOfMappings seedRange)
+|> Array.min
+|> (fun x -> x.Dump())
