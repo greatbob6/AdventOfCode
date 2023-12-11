@@ -1,6 +1,7 @@
 <Query Kind="FSharpProgram" />
 
 let dumper x = x.Dump()
+let dumperMsg (msg: string) x = x.Dump(msg)
 let GetInputFilePath filename = Path.Join(Path.GetDirectoryName(Util.CurrentQueryPath), filename)
 
 let lines = File.ReadAllLines(GetInputFilePath "input_puzzle.txt")
@@ -31,7 +32,7 @@ let startingNodes = nodes |> Array.filter (fun n -> n.Label.EndsWith("A"))
 
 let completed na = na |> Array.forall (fun n -> n.Label.EndsWith("Z"))
 
-let rec nodeDiver currentNodes instructionIdx actionCount =
+let rec nodeDiver currentNodes instructionIdx (actionCount: int64) =
     if completed currentNodes then
         actionCount
     else
@@ -42,7 +43,31 @@ let rec nodeDiver currentNodes instructionIdx actionCount =
                 
                 Map.find nextNodeLabel nodeMap
             )
-        nodeDiver nextNodes ((instructionIdx + 1) % instructionsLength) (actionCount + 1)
+        nodeDiver nextNodes ((instructionIdx + 1) % instructionsLength) (actionCount + 1L)
+        
+let rec cycleFinder node (history: (Node * int) list) instructionIdx =
+    if node.Label.EndsWith("Z") then
+        List.length history
+    else
+        let nextNodeLabel = if instructions[instructionIdx % instructionsLength] = 'L' then node.Left else node.Right
+        let nextNode = Map.find nextNodeLabel nodeMap
+        
+        cycleFinder nextNode ((node, instructionIdx) :: history) (instructionIdx + 1)
 
-nodeDiver startingNodes 0 0
-|> dumper
+let rec gcd a b =
+    match (a,b) with
+    | (x,0L) -> x
+    | (0L, y) -> y
+    | (a,b) -> gcd b (a % b)
+
+let lcm a b = (a * b) / (gcd a b)
+
+startingNodes
+|> Array.Parallel.map (fun n -> cycleFinder n [] 0 |> int64)
+|> Array.reduce (fun a b -> lcm a b)
+|> dumperMsg "LCM"
+
+(*
+nodeDiver startingNodes 0 0L
+|> dumperMsg "Brute"
+*)
