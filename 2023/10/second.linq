@@ -83,17 +83,56 @@ let isPointInside p history =
     
     let isInLoop = notInHistory && isOdd (List.length toTheLeft) && isOdd (List.length toTheRight)
     
-    //(notInHistory, toTheLeft, toTheRight).Dump()
-    
     isInLoop
+    
+let isPointOnLoop p history =
+    let historyEntriesForLine = history |> List.filter (fun x -> x.Y = p.Y) |> List.sortBy (fun x -> x.X)
+    
+    let isInHistory = historyEntriesForLine |> List.exists (fun x -> x = p)
+    
+    isInHistory || p = start
 
 let historyList = match cycle with | Cycle h -> h | _ -> []
+
+let rec scanLine history currentlyInCycle lastCorner curX curY lineVals insideCyclePoints =
+    if curX >= Array.length lineVals then
+        insideCyclePoints
+    else if not currentlyInCycle then
+        if lineVals[curX] = '|' then
+            scanLine history true None (curX + 1) curY lineVals insideCyclePoints
+        else if lineVals[curX] = 'F' then
+            scanLine history true (Some 'F') (curX + 1) curY lineVals insideCyclePoints
+        else if lineVals[curX] = 'L' then
+            scanLine history true (Some 'L') (curX + 1) curY lineVals insideCyclePoints
+        else
+            scanLine history false None (curX + 1) curY lineVals insideCyclePoints
+    else
+        if lineVals[curX] = '|' then
+            scanLine history false None (curX + 1) curY lineVals insideCyclePoints
+        else if lineVals[curX] = '7' then
+            scanLine history false None (curX + 1) curY lineVals insideCyclePoints
+        else if lineVals[curX] = 'J' then
+            scanLine history false None (curX + 1) curY lineVals insideCyclePoints
+        else if lineVals[curX] = '.' then
+            scanLine history true lastCorner (curX + 1) curY lineVals ({ X = curX; Y = curY } :: insideCyclePoints)
+        else
+            scanLine history true lastCorner (curX + 1) curY lineVals insideCyclePoints
 
 isPointInside { X = 7; Y = 4 } historyList
 |> dumper
 
+let insidePoints =
+    grid
+    |> Array.mapi (fun y yLine -> yLine |> Array.mapi (fun x xVal -> if isPointOnLoop { X = x; Y = y } historyList then xVal else '.'))
+    //|> Array.mapi (fun y yLine -> yLine |> Array.mapi (fun x xVal -> if isPointInside { X = x; Y = y } historyList then 'I' else xVal))
+    |> Array.mapi (fun y yLine -> scanLine historyList false None 0 y yLine [])
+    |> Array.toList
+    |> List.collect id
+
+insidePoints.Dump()
+    
 grid
-|> Array.mapi (fun y yLine -> yLine |> Array.mapi (fun x xVal -> if isPointInside { X = x; Y = y } historyList then 'I' else xVal))
+|> Array.mapi (fun y yLine -> yLine |> Array.mapi (fun x xVal -> if List.contains { X = x; Y = y } insidePoints then 'I' else xVal))
 |> gridViewer
 
 grid
